@@ -1,0 +1,87 @@
+# 1. Redpanda (Broker)
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+spec:
+  selector:
+    app: redpanda
+  ports:
+    - protocol: TCP
+      port: 9092
+      targetPort: 9092
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+      - name: redpanda
+        image: docker.redpanda.com/redpandadata/redpanda:latest
+        command: ["/usr/bin/rpk", "redpanda", "start", "--overprovisioned", "--smp=1", "--memory=512M", "--kafka-addr=PLAINTEXT://0.0.0.0:9092", "--advertise-kafka-addr=PLAINTEXT://redpanda:9092"]
+---
+# 2. Central Server
+apiVersion: v1
+kind: Service
+metadata:
+  name: central-server-service
+spec:
+  selector:
+    app: central-server
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: central-server
+  template:
+    metadata:
+      labels:
+        app: central-server
+    spec:
+      containers:
+      - name: server
+        image: central-server:v1
+        imagePullPolicy: Never
+---
+# 3. Monitoring Agent
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: monitoring-agent
+spec:
+  selector:
+    matchLabels:
+      app: monitoring-agent
+  template:
+    metadata:
+      labels:
+        app: monitoring-agent
+    spec:
+      containers:
+      - name: agent
+        image: monitoring-agent:v1
+        imagePullPolicy: Never
+        env:
+        - name: KUBE_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
